@@ -6,12 +6,64 @@
 这是一个**静态 client 插件包**：以 composition 行挂载，随 `dsh web` 启动加载，
 并可在 **设置 → 常规** 中即时启用/禁用（状态持久化，重启保留）。
 
+## 给 Agent 的安装 Prompt（一键复制）
+
+把下面代码块整段发给任意 AI 助手（能读写文件、执行命令的编码 agent），它即可完成安装：
+
+````text
+请把 dsh-claude-theme 安装为 DSH web profile 的静态插件，使其出现在
+设置 → 常规 中并可启用/禁用（状态持久化，重启保留）。包源码位于
+<本仓库路径>/claude-theme/（含 package.json、lib/index.js（Node 半区）、
+lib/client.js（浏览器半区 ModuleLoader bundle）、deploy.sh）。
+
+步骤：
+
+1. 安装包（真实目录，禁止符号链接）：
+   DSH_HOME（默认 ~/.dsh）下 web profile 的 node_modules 为
+   <DSH_HOME>/profiles/web/node_modules/。执行 `bash deploy.sh`，
+   或手动 `cp -r` 把包复制为 <DSH_HOME>/profiles/web/node_modules/dsh-claude-theme/
+   （排除 .git 和 deploy.sh）。
+   ⚠️ 不要用 ln -s：Node ESM 按真实路径解析依赖，符号链接会让 @deepseek-ai/*
+   找不到（正确依赖在 <DSH_HOME>/profiles/node_modules/@deepseek-ai/）。
+
+2. 挂载行：在 <DSH_HOME>/profiles/web/cordis.patch.yml 追加：
+
+   ```yaml
+   - insert:
+       - id: claude-theme
+         name: 'dsh-claude-theme'
+   ```
+
+3. 校验组合：`dsh --profile web --dump-config`，确认输出含
+   `- id: claude-theme / name: dsh-claude-theme` 且无报错
+   （该命令会写 profile 的 cordis.yml，需要目录写权限）。
+
+4. 重启 dsh web：
+   - ⚠️ 若 agent 自身就跑在 dsh web 进程里，直接杀进程会杀掉自己。
+     用 `setsid -f` 启动一个脱离脚本：先 `kill -TERM` 旧进程（含 npm exec /
+     sh / node 三层，超时再 `-KILL`），等 3080 端口释放后
+     `nohup setsid <dsh bin> web` 重新拉起。
+   - ⚠️ 从 agent 沙箱内启动的重启脚本会继承文件访问限制，新实例可能因
+     EACCES 写 cordis.yml 崩溃——需要以完全权限（danger-full-access）
+     启动脚本，或直接请用户手动重启。
+
+5. 验证：
+   - `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3080/plugins/dsh-claude-theme/client.js` → 200；
+   - 页面出现 Claude 风格暖色主题（象牙白 + 赤陶色），DeepSeek logo 不变；
+   - 设置 → 常规 → "Claude 风格主题" 开关存在，关闭立即还原默认主题，
+     再次打开恢复，重启后保持。
+
+不要用动态插件流程（cordis_define / cordis_run）安装本包——它是
+composition 静态插件，走 Loader 行挂载。
+````
+
 ## 项目结构
 
 ```
 claude-theme/
 ├── package.json      # 包声明：dsh.client 契约 + exports
 ├── README.md         # 本文件
+├── deploy.sh         # 同步安装到 web profile node_modules（真实目录复制）
 └── lib/
     ├── index.js      # Node 半区：注册 claude-theme 设置命名空间（{ enabled }）
     └── client.js     # 浏览器半区（ModuleLoader bundle）：主题应用 + 设置开关行
@@ -19,8 +71,8 @@ claude-theme/
 
 ## 安装 / 挂载
 
-1. 把包放入 profile 可解析的 node_modules：
-   `ln -s <repo>/claude-theme <profile>/node_modules/dsh-claude-theme`
+1. 把包放入 profile 可解析的 node_modules（**真实目录，不要符号链接**）：
+   `bash deploy.sh`，或手动 `cp -r <repo>/claude-theme <profile>/node_modules/dsh-claude-theme`
 2. 在 profile 的 `cordis.patch.yml` 追加：
 
    ```yaml
@@ -84,56 +136,3 @@ tertiary 文字、thinking 渐变等全部暖色化；`::selection` 赤陶高光
 - 圆角体系已是 12px（与 Claude 接近），未改动。
 - 字体沿用系统无衬线栈（与 Claude 正文一致），未改动。
 - 未触碰任何 Slots / logo 组件，品牌元素保持 DeepSeek 原样。
-
-## 给 Agent 的安装 Prompt
-
-把下面整段发给任意 AI 助手（能读写文件、执行命令的编码 agent），它即可完成安装：
-
----
-
-请把 `dsh-claude-theme` 安装为 DSH web profile 的静态插件，使其出现在
-**设置 → 常规** 中并可启用/禁用（状态持久化，重启保留）。包源码位于
-`<本仓库路径>/claude-theme/`（含 `package.json`、`lib/index.js`（Node 半区）、
-`lib/client.js`（浏览器半区 ModuleLoader bundle）、`deploy.sh`）。
-
-步骤：
-
-1. **安装包（真实目录，禁止符号链接）**：
-   `DSH_HOME`（默认 `~/.dsh`）下 web profile 的 node_modules 为
-   `<DSH_HOME>/profiles/web/node_modules/`。执行 `bash deploy.sh`，
-   或手动 `cp -r` 把包复制为 `<DSH_HOME>/profiles/web/node_modules/dsh-claude-theme/`
-   （排除 `.git` 和 `deploy.sh`）。⚠️ 不要用 `ln -s`：Node ESM 按真实路径解析
-   依赖，符号链接会让 `@deepseek-ai/*` 找不到（正确依赖在
-   `<DSH_HOME>/profiles/node_modules/@deepseek-ai/`）。
-
-2. **挂载行**：在 `<DSH_HOME>/profiles/web/cordis.patch.yml` 追加：
-
-   ```yaml
-   - insert:
-       - id: claude-theme
-         name: 'dsh-claude-theme'
-   ```
-
-3. **校验组合**：`dsh --profile web --dump-config`，确认输出含
-   `- id: claude-theme / name: dsh-claude-theme` 且无报错
-   （该命令会写 profile 的 cordis.yml，需要目录写权限）。
-
-4. **重启 `dsh web`**：
-   - ⚠️ 若 agent 自身就跑在 `dsh web` 进程里，直接杀进程会杀掉自己。
-     用 `setsid -f` 启动一个脱离脚本：先 `kill -TERM` 旧进程（含 npm exec /
-     sh / node 三层，超时再 `-KILL`），等 3080 端口释放后
-     `nohup setsid <dsh bin> web` 重新拉起。
-   - ⚠️ 从 agent 沙箱内启动的重启脚本会继承文件访问限制，新实例可能因
-     EACCES 写 `cordis.yml` 崩溃——需要以完全权限（danger-full-access）
-     启动脚本，或直接请用户手动重启。
-
-5. **验证**：
-   - `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3080/plugins/dsh-claude-theme/client.js` → 200；
-   - 页面出现 Claude 风格暖色主题（象牙白 + 赤陶色），DeepSeek logo 不变；
-   - 设置 → 常规 → "Claude 风格主题" 开关存在，关闭立即还原默认主题，
-     再次打开恢复，重启后保持。
-
-不要用动态插件流程（cordis_define / cordis_run）安装本包——它是
-composition 静态插件，走 Loader 行挂载。
-
----
