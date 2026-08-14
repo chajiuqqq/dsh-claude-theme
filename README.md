@@ -1,45 +1,57 @@
-# claude-theme — Claude 风格主题插件（DSH Web UI）
+# dsh-claude-theme — Claude 风格主题插件（DSH Web UI）
 
 把 DSH Web 界面改为 **Claude 风格暖色主题**：象牙白背景、赤陶色（terracotta）主色、
 暖灰文字，**保留 DeepSeek logo 与品牌元素**。浅色 / 深色两套色板。
+
+这是一个**静态 client 插件包**：以 composition 行挂载，随 `dsh web` 启动加载，
+并可在 **设置 → 常规** 中即时启用/禁用（状态持久化，重启保留）。
 
 ## 项目结构
 
 ```
 claude-theme/
-├── package.json      # 项目元信息（含动态插件 ID 记录）
+├── package.json      # 包声明：dsh.client 契约 + exports
 ├── README.md         # 本文件
 └── lib/
-    └── client.js     # Client 半区插件源码（code.client 原样）
+    ├── index.js      # Node 半区：注册 claude-theme 设置命名空间（{ enabled }）
+    └── client.js     # 浏览器半区（ModuleLoader bundle）：主题应用 + 设置开关行
 ```
 
-## 当前运行状态
+## 安装 / 挂载
 
-| 项 | 值 |
-| --- | --- |
-| 插件 ID | `claude-1` |
-| 包 ID | `pkg-1`（运行中，run-1） |
-| 平台 | Client（浏览器） |
-| 类型 | 动态 Cordis 插件（进程内，重启后失效） |
+1. 把包放入 profile 可解析的 node_modules：
+   `ln -s <repo>/claude-theme <profile>/node_modules/dsh-claude-theme`
+2. 在 profile 的 `cordis.patch.yml` 追加：
 
-## 部署 / 重新激活
+   ```yaml
+   - insert:
+       - id: claude-theme
+         name: 'dsh-claude-theme'
+   ```
 
-动态插件定义不落盘、重启后失效。重新激活步骤：
+3. 重启 `dsh web`。设置 → 常规 → "Claude 风格主题" 开关，关闭即还原默认主题。
 
-1. 在会话中让模型读取 `lib/client.js` 全文；
-2. `cordis_define`（`plugin.kind: 'existing'`, `pluginId: 'claude-1'`，
-   `code.client` = 文件内容）追加新 Package；
-3. `cordis_run`（有 current 时用 `update` 模式）激活，页面批准后生效。
+## 实现机制
 
-停用 / 还原：`cordis_stop`（临时停用）或 `cordis_undefine`（彻底删除），
-界面立即还原为默认 DeepSeek 主题。
+### Node 半区（lib/index.js）
 
-## 实现机制（两层）
+`settings.register('claude-theme', z.object({ enabled: z.boolean().default(true) }))`
+—— 命名空间 schema 注册，首次安装默认启用。
 
-### 1) 核心令牌层 — `theme.overrideTokens(source, tokens)`
+### 浏览器半区（lib/client.js）
 
-Theme 服务把令牌写为 `document.body` 内联样式（`ThemePresenter`），随明暗切换自动
-重放；卸载时自动还原。覆盖 13 个核心令牌：
+- **启动/切换**：`settingsScope.bind({ namespace: 'claude-theme' })` 读取快照，
+  订阅变化；`enabled !== false` 时应用主题，否则移除。
+- **主题两层**：
+  1. `theme.overrideTokens()` 覆盖 13 个核心令牌（body 内联样式，随明暗自动切换）；
+  2. 包级 `<style>` 标签（`data-plugin="dsh-claude-theme"`）替换派生变量——
+     基础样式表里约 60 个 alias 变量直接引用蓝灰静态色板，这里整体换成
+     Claude 暖色板（浅色 `body` / 深色 `body[data-ds-dark-theme]`）。
+- **设置开关行**：注册 `settings.general.item`（id: `claude-theme`），
+  赤陶色 switch 写入 `scope.set('enabled', value)`，即时生效。
+- 所有副作用注册 `ctx.effect`，插件卸载时自动清理。
+
+## 核心令牌映射（theme.overrideTokens，浅色 / 深色）
 
 | 令牌 | 浅色 | 深色 |
 | --- | --- | --- |
@@ -57,12 +69,8 @@ Theme 服务把令牌写为 `document.body` 内联样式（`ThemePresenter`）�
 | `--dsw-alias-state-warn-primary` | `#a66e1b` | `#d9a13c` |
 | `--dsw-specific-sidebar-fill` | `#f3f1ea` | `#232321` |
 
-### 2) 派生面 — `styles.insert(css)` 包级样式表
-
-基础样式表里约 60 个 alias 变量直接引用**蓝灰静态色板**（如按钮 hover、代码块、
-tooltip、滚动条、tertiary 文字等），theme 服务不覆盖它们。这里用包级 `<style>` 标签
-按同一选择器（`body` / `body[data-ds-dark-theme]`）整体替换为暖色，后者级联生效；
-插件卸载时标签自动移除。另含 `::selection` 赤陶高光与 thinking 渐变暖化。
+派生面（styles.insert 内）覆盖按钮 hover、代码块、tooltip、toast、滚动条、
+tertiary 文字、thinking 渐变等全部暖色化；`::selection` 赤陶高光。
 
 ## 设计参考（Claude.ai 色板）
 
