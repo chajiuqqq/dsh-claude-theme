@@ -1,0 +1,8 @@
+# dsh-claude-theme bundle patch
+#
+# 本文件由 `dsh plugin --profile web add dsh-claude-theme` 的 bundle 协调
+# （package.json 的 dsh.bundle.patch 声明）自动挂载：插件名会被追加到
+# profile 的 dsh.profile.bundles，启动时按顺序应用本 patch。
+- insert:
+    - id: claude-theme
+      name: 'dsh-claude-theme'
