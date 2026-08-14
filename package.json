@@ -1,0 +1,15 @@
+{
+  "name": "claude-theme",
+  "version": "1.0.0",
+  "description": "Claude 风格主题插件（DSH Web UI）—— 象牙白背景、赤陶色主色、暖灰文字，保留 DeepSeek logo",
+  "private": true,
+  "dsh": {
+    "kind": "dynamic-cordis-plugin",
+    "platform": "client",
+    "pluginId": "claude-1",
+    "packageId": "pkg-1",
+    "runId": "run-1",
+    "name": "Claude 风格主题",
+    "purpose": "把 DSH Web 界面改为 Claude 风格的暖色主题（象牙白背景、赤陶色主色调、暖灰文字），保留 DeepSeek logo 与品牌元素。"
+  }
+}
